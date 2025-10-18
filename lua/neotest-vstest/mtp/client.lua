@@ -301,6 +301,10 @@ function M.run_tests(dll_path, nodes)
     result_stream = result_stream.get,
     output_stream = output_stream.get,
     stop = function()
+      client:request("$/cancelRequest", {
+        id = run_id,
+      })
+
       client:stop(true)
     end,
   }
@@ -343,6 +347,8 @@ function M.debug_tests(dll_path, nodes)
     done_event.set()
   end)
 
+  local run_id = uuid()
+
   return {
     pid = mtp_process_pid,
     on_attach = function()
@@ -351,7 +357,6 @@ function M.debug_tests(dll_path, nodes)
       nio.scheduler()
 
       client:initialize()
-      local run_id = uuid()
       client:request("testing/runTests", {
         runId = run_id,
         tests = nodes,
@@ -370,7 +375,13 @@ function M.debug_tests(dll_path, nodes)
     result_stream = result_stream.get,
     result_future = future_result,
     stop = function()
-      client_future.wait():stop(true)
+      local client = client_future.wait()
+
+      client:request("$/cancelRequest", {
+        id = run_id,
+      })
+
+      client:stop(true)
     end,
   }
 end
