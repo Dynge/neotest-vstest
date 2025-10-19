@@ -1,0 +1,4 @@
+std = "lua52+selene_nvim+selene_awesome"
+
+[lints]
+mixed_table = "allow"
