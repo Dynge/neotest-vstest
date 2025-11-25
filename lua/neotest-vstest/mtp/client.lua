@@ -270,6 +270,8 @@ function M.run_tests(dll_path, nodes, mtp_env)
   local run_id = uuid()
   local future_result = nio.control.future()
   local done_event = nio.control.event()
+  ---@type integer?
+  local request_id = nil
 
   logger.debug("neotest-vstest: running tests for: " .. vim.inspect(nodes))
 
@@ -278,7 +280,7 @@ function M.run_tests(dll_path, nodes, mtp_env)
     local client = client_future.wait()
     client:initialize()
     nio.scheduler()
-    client:request("testing/runTests", {
+    _, request_id = client:request("testing/runTests", {
       runId = run_id,
       tests = nodes,
     }, function(err, _)
@@ -307,7 +309,24 @@ function M.run_tests(dll_path, nodes, mtp_env)
     result_stream = result_stream.get,
     output_stream = output_stream.get,
     stop = function()
-      client_future.wait():stop(true)
+      local client = client_future.wait()
+      if request_id ~= nil then
+        client:cancel_request(request_id)
+      end
+      if not future_result.is_set() then
+        local cancel_results = {}
+        for _, test_node in ipairs(nodes) do
+          cancel_results[test_node.uid] = {
+            status = types.ResultStatus.failed,
+            short = "Cancelled",
+            errors = {},
+          }
+        end
+        future_result.set(cancel_results)
+      end
+      -- We may not need to stop the client.
+      -- However i think that requires us to redo some init in order to have a single long running client.
+      client:stop(true)
     end,
   }
 end
